@@ -145,6 +145,16 @@ found:
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
+  // MLFQ + metrics
+  p->level = 0;
+  p->ticks_at_level = 0;
+  p->total_ticks = 0;
+  p->arrival = ticks;
+  p->first_run = -1;
+  p->finish = -1;
+  p->ctx_switches = 0;
+  p->last_run = ticks;
+  
 
   return p;
 }
