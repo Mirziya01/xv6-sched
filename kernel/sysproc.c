@@ -6,6 +6,9 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "vm.h"
+#include "pstat.h"
+
+extern struct proc proc[NPROC];
 
 uint64
 sys_exit(void)
@@ -109,4 +112,37 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
+}
+
+uint64
+sys_getpinfo(void)
+{
+  int pid;
+  uint64 addr;
+  struct pstat st;
+  struct proc *p;
+
+  argint(0, &pid);
+  argaddr(1, &addr);
+
+  for (p = proc; p < &proc[NPROC]; p++) {
+    acquire(&p->lock);
+    if (p->state != UNUSED && p->pid == pid) {
+      st.pid = p->pid;
+      st.level = p->level;
+      st.ticks_at_level = p->ticks_at_level;
+      st.total_ticks = p->total_ticks;
+      st.arrival = p->arrival;
+      st.first_run = p->first_run;
+      st.finish = p->finish;
+      st.ctx_switches = p->ctx_switches;
+      release(&p->lock);
+      if (copyout(myproc()->pagetable, myproc()->sz, addr, (char *)&st,
+                  sizeof(st)) < 0)
+        return -1;
+      return 0;
+    }
+    release(&p->lock);
+  }
+  return -1;
 }
