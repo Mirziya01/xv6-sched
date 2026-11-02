@@ -365,6 +365,7 @@ kexit(int status)
   acquire(&p->lock);
 
   p->xstate = status;
+  p->finish = ticks;
   p->state = ZOMBIE;
 
   release(&wait_lock);
@@ -460,6 +461,12 @@ scheduler(void)
         // before jumping back to us.
         p->state = RUNNING;
         c->proc = p;
+        
+        if (p->first_run == -1)
+          p->first_run = ticks;
+        p->ctx_switches++;
+        p->last_run = ticks;
+        
         swtch(&c->context, &p->context);
 
         // Don't re-enable interrupts on release.

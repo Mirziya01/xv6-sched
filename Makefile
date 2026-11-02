@@ -154,6 +154,7 @@ UPROGS=\
 	$U/_sync\
 	$U/_hello\
 	$U/_pinfo\
+	$U/_spin\
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)
