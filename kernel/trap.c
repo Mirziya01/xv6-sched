@@ -83,8 +83,8 @@ usertrap(void)
 
   // give up the CPU if this is a timer interrupt.
   if (which_dev == 2) {
-    proc_tick(p);
-    yield();
+    if(proc_tick(p))
+      yield();
   }
 
   prepare_return();
@@ -157,24 +157,14 @@ kerneltrap()
 
   // give up the CPU if this is a timer interrupt.
   if (which_dev == 2 && myproc() != 0) {
-    proc_tick(myproc());
-    yield();
+    if (proc_tick(myproc()))
+      yield();
   }
 
   // the yield() may have caused some traps to occur,
   // so restore trap registers for use by kernelvec.S's sepc instruction.
   w_sepc(sepc);
   w_sstatus(sstatus);
-}
-
-// Charge one timer tick to the running process.
-void
-proc_tick(struct proc *p)
-{
-  acquire(&p->lock);
-  p->total_ticks++;
-  p->ticks_at_level++;
-  release(&p->lock);
 }
 
 void

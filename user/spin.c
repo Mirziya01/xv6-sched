@@ -18,7 +18,7 @@ main(int argc, char *argv[])
       x++;
 
   getpinfo(getpid(), &st);
-  printf("pid=%d total=%d first_run=%d switches=%d\n",
-         st.pid, st.total_ticks, st.first_run, st.ctx_switches);
+  printf("pid=%d level=%d total=%d first_run=%d switches=%d\n",
+         st.pid, st.level, st.total_ticks, st.first_run, st.ctx_switches);
   exit(0);
 }

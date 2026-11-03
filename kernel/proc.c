@@ -10,7 +10,12 @@ struct cpu cpus[NCPU];
 
 struct proc proc[NPROC];
 
+// time quantum in ticks for each MLFQ level (0 = highest priority)
+static int mlfq_quantum[MLFQ_NLEVELS] = {1, 2, 4};
+
 struct proc *initproc;
+
+static int sched_seq;
 
 int nextpid = 1;
 struct spinlock pid_lock;
@@ -153,7 +158,7 @@ found:
   p->first_run = -1;
   p->finish = -1;
   p->ctx_switches = 0;
-  p->last_run = ticks;
+  p->last_run = 0;
   
 
   return p;
@@ -453,32 +458,70 @@ scheduler(void)
     intr_off();
 
     int found = 0;
+
+#ifdef SCHED_MLFQ
+    struct proc *best = 0;
+    int best_level = 0, best_seq = 0;
+
+    // pass 1: find the best RUNNABLE process, holding one lock at a time
     for (p = proc; p < &proc[NPROC]; p++) {
       acquire(&p->lock);
+      if (p->state == RUNNABLE &&
+          (best == 0 || p->level < best_level ||
+           (p->level == best_level && p->last_run < best_seq))) {
+        best = p;
+        best_level = p->level;
+        best_seq = p->last_run;
+      }
+      release(&p->lock);
+    }
+
+    // pass 2: lock the winner and re-check that it is still RUNNABLE
+    if (best) {
+      p = best;
+      acquire(&p->lock);
       if (p->state == RUNNABLE) {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
         p->state = RUNNING;
         c->proc = p;
-        
+
         if (p->first_run == -1)
           p->first_run = ticks;
         p->ctx_switches++;
-        p->last_run = ticks;
-        
+        p->last_run = ++sched_seq;
+
         swtch(&c->context, &p->context);
 
         // Don't re-enable interrupts on release.
         mycpu()->intena = 0;
 
         // Process is done running for now.
-        // It should have changed its p->state before coming back.
         c->proc = 0;
         found = 1;
       }
       release(&p->lock);
     }
+#else
+    for (p = proc; p < &proc[NPROC]; p++) {
+      acquire(&p->lock);
+      if (p->state == RUNNABLE) {
+        p->state = RUNNING;
+        c->proc = p;
+
+        if (p->first_run == -1)
+          p->first_run = ticks;
+        p->ctx_switches++;
+        p->last_run = ++sched_seq;
+
+        swtch(&c->context, &p->context);
+
+        mycpu()->intena = 0;
+        c->proc = 0;
+        found = 1;
+      }
+      release(&p->lock);
+    }
+#endif
+
     if (found == 0) {
       // nothing to run; stop running on this core until an interrupt.
       asm volatile("wfi");
@@ -522,6 +565,30 @@ yield(void)
   p->state = RUNNABLE;
   sched();
   release(&p->lock);
+}
+
+// Charge one timer tick to p. Returns 1 if p should give up the CPU.
+int
+proc_tick(struct proc *p)
+{
+  int yield_now = 1;
+
+  acquire(&p->lock);
+  p->total_ticks++;
+#ifdef SCHED_MLFQ
+  p->ticks_at_level++;
+  if (p->ticks_at_level >= mlfq_quantum[p->level]) {
+    if (p->level < MLFQ_NLEVELS - 1)
+      p->level++;           // used its allotment: demote
+    p->ticks_at_level = 0;
+  } else {
+    yield_now = 0;          // quantum not used up yet
+  }
+#else
+  p->ticks_at_level++;
+#endif
+  release(&p->lock);
+  return yield_now;
 }
 
 // A fork child's very first scheduling by scheduler()
