@@ -162,7 +162,6 @@ found:
   p->finish = -1;
   p->ctx_switches = 0;
   p->last_run = 0;
-  
 
   return p;
 }
@@ -417,7 +416,7 @@ kwait(uint64 addr, uint64 psaddr)
         acquire(&pp->lock);
 
         havekids = 1;
-                if (pp->state == ZOMBIE) {
+        if (pp->state == ZOMBIE) {
           // Found one.
           pid = pp->pid;
           if (addr != 0 &&
@@ -430,8 +429,8 @@ kwait(uint64 addr, uint64 psaddr)
           if (psaddr != 0) {
             struct pstat st;
             fill_pstat(pp, &st);
-            if (copyout(p->pagetable, p->sz, psaddr, (char *)&st,
-                        sizeof(st)) < 0) {
+            if (copyout(p->pagetable, p->sz, psaddr, (char *)&st, sizeof(st)) <
+                0) {
               release(&pp->lock);
               release(&wait_lock);
               return -1;
@@ -611,10 +610,10 @@ proc_tick(struct proc *p)
     p->ticks_at_level++;
     if (p->ticks_at_level >= mlfq_quantum[p->level]) {
       if (p->level < MLFQ_NLEVELS - 1)
-        p->level++;           // used its allotment: demote
+        p->level++; // used its allotment: demote
       p->ticks_at_level = 0;
     } else {
-      yield_now = 0;          // quantum not used up yet
+      yield_now = 0; // quantum not used up yet
     }
   }
 #else

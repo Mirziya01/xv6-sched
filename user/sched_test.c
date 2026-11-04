@@ -8,15 +8,17 @@ work(int n)
 {
   volatile int x = 0;
   for (int i = 0; i < n; i++)
-    for (int j = 0; j < 1000000; j++)
+    for (int j = 0; j < 1000000; j++) {
       x++;
+      x; // to avoid compiler warnings of 'unused var'
+    }
 }
 
 int
 main(int argc, char *argv[])
 {
   int nproc = 4;
-  int len = 400;   // about 20 ticks of CPU when run alone
+  int len = 400; // about 20 ticks of CPU when run alone
 
   if (argc > 1)
     nproc = atoi(argv[1]);

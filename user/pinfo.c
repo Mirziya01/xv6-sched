@@ -12,9 +12,9 @@ main(void)
     printf("getpinfo failed\n");
     exit(1);
   }
-  printf("pid=%d level=%d ticks_at_level=%d total=%d\n",
-         st.pid, st.level, st.ticks_at_level, st.total_ticks);
-  printf("arrival=%d first_run=%d finish=%d switches=%d\n",
-         st.arrival, st.first_run, st.finish, st.ctx_switches);
+  printf("pid=%d level=%d ticks_at_level=%d total=%d\n", st.pid, st.level,
+         st.ticks_at_level, st.total_ticks);
+  printf("arrival=%d first_run=%d finish=%d switches=%d\n", st.arrival,
+         st.first_run, st.finish, st.ctx_switches);
   exit(0);
 }
