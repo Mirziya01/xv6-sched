@@ -13,9 +13,16 @@ main(int argc, char *argv[])
   if (argc > 1)
     n = atoi(argv[1]);
 
-  for (int i = 0; i < n; i++)
+  int last = -1;
+  for (int i = 0; i < n; i++) {
     for (int j = 0; j < 1000000; j++)
       x++;
+    getpinfo(getpid(), &st);
+    if (st.level != last) {
+      printf("  tick %d: level %d\n", uptime(), st.level);
+      last = st.level;
+    }
+  }  
 
   getpinfo(getpid(), &st);
   printf("pid=%d level=%d total=%d first_run=%d switches=%d\n",

@@ -114,3 +114,10 @@ struct proc {
 };
 
 #define MLFQ_NLEVELS 3
+
+#ifndef MLFQ_BOOST
+#define MLFQ_BOOST 1            // 1 = boost on, 0 = off
+#endif
+#ifndef MLFQ_BOOST_INTERVAL
+#define MLFQ_BOOST_INTERVAL 20  // ticks between boosts
+#endif

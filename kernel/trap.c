@@ -175,6 +175,10 @@ clockintr()
     ticks++;
     wakeup(&ticks);
     release(&tickslock);
+#ifdef SCHED_MLFQ
+    if (MLFQ_BOOST && ticks % MLFQ_BOOST_INTERVAL == 0)
+      mlfq_boost();
+#endif
   }
 
   // ask for the next timer interrupt. this also clears

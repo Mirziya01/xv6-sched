@@ -10,8 +10,10 @@ struct cpu cpus[NCPU];
 
 struct proc proc[NPROC];
 
+#ifdef SCHED_MLFQ
 // time quantum in ticks for each MLFQ level (0 = highest priority)
 static int mlfq_quantum[MLFQ_NLEVELS] = {1, 2, 4};
+#endif
 
 struct proc *initproc;
 
@@ -576,19 +578,41 @@ proc_tick(struct proc *p)
   acquire(&p->lock);
   p->total_ticks++;
 #ifdef SCHED_MLFQ
-  p->ticks_at_level++;
-  if (p->ticks_at_level >= mlfq_quantum[p->level]) {
-    if (p->level < MLFQ_NLEVELS - 1)
-      p->level++;           // used its allotment: demote
-    p->ticks_at_level = 0;
+  if (MLFQ_BOOST && ticks % MLFQ_BOOST_INTERVAL == 0) {
+    // clockintr() just boosted everyone, this process included.
+    // Don't charge this tick against its fresh level-0 quantum;
+    // yield so the scheduler re-picks among the boosted processes.
   } else {
-    yield_now = 0;          // quantum not used up yet
+    p->ticks_at_level++;
+    if (p->ticks_at_level >= mlfq_quantum[p->level]) {
+      if (p->level < MLFQ_NLEVELS - 1)
+        p->level++;           // used its allotment: demote
+      p->ticks_at_level = 0;
+    } else {
+      yield_now = 0;          // quantum not used up yet
+    }
   }
 #else
   p->ticks_at_level++;
 #endif
   release(&p->lock);
   return yield_now;
+}
+
+// Move every live process back to the top queue.
+void
+mlfq_boost(void)
+{
+  struct proc *p;
+
+  for (p = proc; p < &proc[NPROC]; p++) {
+    acquire(&p->lock);
+    if (p->state != UNUSED) {
+      p->level = 0;
+      p->ticks_at_level = 0;
+    }
+    release(&p->lock);
+  }
 }
 
 // A fork child's very first scheduling by scheduler()
