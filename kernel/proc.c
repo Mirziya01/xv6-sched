@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "pstat.h"
 
 struct cpu cpus[NCPU];
 
@@ -382,10 +383,24 @@ kexit(int status)
   panic("zombie exit");
 }
 
+// Snapshot p's metrics into *st. Caller must hold p->lock.
+static void
+fill_pstat(struct proc *p, struct pstat *st)
+{
+  st->pid = p->pid;
+  st->level = p->level;
+  st->ticks_at_level = p->ticks_at_level;
+  st->total_ticks = p->total_ticks;
+  st->arrival = p->arrival;
+  st->first_run = p->first_run;
+  st->finish = p->finish;
+  st->ctx_switches = p->ctx_switches;
+}
+
 // Wait for a child process to exit and return its pid.
 // Return -1 if this process has no children.
 int
-kwait(uint64 addr)
+kwait(uint64 addr, uint64 psaddr)
 {
   struct proc *pp;
   int havekids, pid;
@@ -402,7 +417,7 @@ kwait(uint64 addr)
         acquire(&pp->lock);
 
         havekids = 1;
-        if (pp->state == ZOMBIE) {
+                if (pp->state == ZOMBIE) {
           // Found one.
           pid = pp->pid;
           if (addr != 0 &&
@@ -411,6 +426,16 @@ kwait(uint64 addr)
             release(&pp->lock);
             release(&wait_lock);
             return -1;
+          }
+          if (psaddr != 0) {
+            struct pstat st;
+            fill_pstat(pp, &st);
+            if (copyout(p->pagetable, p->sz, psaddr, (char *)&st,
+                        sizeof(st)) < 0) {
+              release(&pp->lock);
+              release(&wait_lock);
+              return -1;
+            }
           }
           pp->parent = 0;
           freeproc(pp);

@@ -157,6 +157,7 @@ UPROGS=\
 	$U/_hello\
 	$U/_pinfo\
 	$U/_spin\
+	$U/_sched_test\
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)
