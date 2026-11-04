@@ -15,6 +15,14 @@ main()
     printkinit();
     printk("\n");
     printk("xv6 kernel is booting\n");
+#ifdef SCHED_MLFQ
+    printk("scheduler: MLFQ\n");
+#elif defined(SCHED_LOTTERY)
+    printk("scheduler: LOTTERY\n");
+#else
+    printk("scheduler: RR\n");
+#endif
+    printk("\n");
     printk("\n");
     kinit();            // physical page allocator
     kvminit();          // create kernel page table

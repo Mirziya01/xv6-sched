@@ -79,6 +79,10 @@ CFLAGS += -fno-builtin-memcpy -Wno-main
 CFLAGS += -fno-builtin-printf -fno-builtin-fprintf -fno-builtin-vprintf
 CFLAGS += -I.
 CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
+SCHED ?= RR
+CFLAGS += -DSCHED_$(SCHED)
+BOOST ?= 1
+CFLAGS += -DMLFQ_BOOST=$(BOOST)
 
 # Disable PIE when possible (for Ubuntu 16.10 toolchain)
 ifneq ($(shell $(CC) -dumpspecs 2>/dev/null | grep -e '[^f]no-pie'),)
@@ -151,6 +155,9 @@ UPROGS=\
 	$U/_dorphan\
 	$U/_sync\
 	$U/_hello\
+	$U/_pinfo\
+	$U/_spin\
+	$U/_sched_test\
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)
