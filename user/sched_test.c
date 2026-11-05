@@ -19,7 +19,7 @@ main(int argc, char *argv[])
 {
   int nproc = 4;
   int len = 400; // about 20 ticks of CPU when run alone
-  
+
   if (argc > 1) // first arg: number of processes
     nproc = atoi(argv[1]);
   if (argc > 2) // second arg: number of ticks
