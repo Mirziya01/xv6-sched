@@ -7,32 +7,36 @@
 # ./test-xv6.py -q usertests (runs the quick tests of usertests)
 # ./test-xv6.py crash  (runs the crash tests)
 # ./test-xv6.py log (runs the log crash test)
-
+# ./test-xv6.py -c "command" (runs a direct command)
 import argparse, os, inspect, re, signal, subprocess, sys, time
 from subprocess import run
-
-sys.stdout.reconfigure(line_buffering=True)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('testrex', help="test name or regular expression")
 parser.add_argument("-q", action='store_true', help="usertests quick")
-args = parser.parse_args()
+parser.add_argument("-c", action='store_true', help="direct command to run")
+args = None
 
 class QEMU(object):
 
-    def __init__(self, reset=False):
+    def __init__(self, reset=False,scheduler="RR"):
         if reset:
             self.build_xv6()
             self.reset_fs()
-        q = ["make", "qemu"]
+        q = ["make", "qemu","SCHED="+scheduler]
         self.proc = subprocess.Popen(q, stdin=subprocess.PIPE,
                                       stdout=subprocess.PIPE,
-                                      stderr=subprocess.STDOUT)
+                                      stderr=subprocess.STDOUT,
+                                      start_new_session=True)
         os.set_blocking(self.proc.stdout.fileno(), False)
         self.output = ""
         self.outbytes = bytearray()
         self.reported = 0
-        time.sleep(1)
+        try:
+            self.wait_for_prompt(timeout=120)
+        except Exception:
+            self.stop()
+            raise
 
     def reset_fs(self):
         try:
@@ -60,6 +64,33 @@ class QEMU(object):
             c = c.encode('utf-8')
         self.proc.stdin.write(c)
         self.proc.stdin.flush()
+
+    def command(self, command, timeout=10e3):
+        self.wait_for_prompt(timeout)
+        self.read()
+        start = len(self.output)
+        self.cmd(command + "\n")
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            self.read()
+            output = self.output[start:]
+            if any(re.fullmatch(r'\$ *', line) for line in output.splitlines()):
+                return output
+            if self.proc.poll() is not None:
+                raise RuntimeError(f"QEMU exited while running {command!r}:\n{output}")
+            time.sleep(0.05)
+        raise TimeoutError(f"Timed out running {command!r} in QEMU")
+
+    def wait_for_prompt(self, timeout):
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            self.read()
+            if any(re.fullmatch(r'\$ *', line) for line in self.output.splitlines()):
+                return
+            if self.proc.poll() is not None:
+                raise RuntimeError(f"QEMU exited before the shell was ready:\n{self.output}")
+            time.sleep(0.05)
+        raise TimeoutError("Timed out waiting for the xv6 shell prompt")
         
     def crash(self):
         ps = run(['ps', '-opid', '--no-headers', '--ppid', str(self.proc.pid)], stdout=subprocess.PIPE, encoding='utf8')
@@ -71,7 +102,18 @@ class QEMU(object):
         os.kill(kids[0], signal.SIGKILL)
 
     def stop(self):
-        self.proc.terminate()
+        try:
+            os.killpg(self.proc.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        try:
+            self.proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            try:
+                os.killpg(self.proc.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            self.proc.wait()
 
     def read(self):
         while True:
@@ -93,9 +135,9 @@ class QEMU(object):
         self.stop()
         sys.exit(1)
 
-    def match(self, *regexps, exit=True):
+    def match(self, *regexps, exit=True, start=0):
         found = False
-        for line in self.lines():
+        for line in self.output[start:].splitlines():
             if any(re.match(r, line) for r in regexps):
                 print(line)
                 found = True
@@ -115,7 +157,7 @@ class QEMU(object):
                 print(line)
         self.reported = end
 
-    def monitor(self, *regexps, progress="", timeout):
+    def monitor(self, *regexps, progress="", timeout, start=0):
         deadline = time.time() + timeout
         while True:
             time.sleep(1)
@@ -125,7 +167,7 @@ class QEMU(object):
             self.read()
             if progress:
                 self.progress(progress)
-            if self.match(*regexps, exit=False):
+            if self.match(*regexps, exit=False, start=start):
                 return
 
 def crash_log():
@@ -207,8 +249,19 @@ def test_usertests(test=""):
     q.monitor('^ALL TESTS PASSED', progress='test', timeout=timeout)
     q.stop()
 
-def main():
+def main(argv=None,scheduler="RR"):
+    global args
+    args = parser.parse_args(argv)
     print(args)
+    if args.c: # Run a command directly
+        q = QEMU(scheduler=scheduler)
+        q.read()
+        start = len(q.output) # multi-line output is weird so we need this
+        q.reported = start
+        q.cmd(args.testrex + "\n")
+        q.monitor(r'^\$ *$', progress=r'.*', timeout=10e3, start=start)
+        q.stop()
+        return
     rex = r'%s' % args.testrex
     funcs = [(obj,name) for name,obj in inspect.getmembers(sys.modules[__name__]) 
                      if (inspect.isfunction(obj) and 
@@ -221,4 +274,7 @@ def main():
     if none:
         test_usertests(test=args.testrex)
 
-main()
+
+if __name__ == "__main__":
+    sys.stdout.reconfigure(line_buffering=True)
+    main()
