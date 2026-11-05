@@ -527,6 +527,7 @@ scheduler(void)
       release(&p->lock);
     }
 #else
+    // Round Robin (Default)
     for (p = proc; p < &proc[NPROC]; p++) {
       acquire(&p->lock);
       if (p->state == RUNNABLE) {

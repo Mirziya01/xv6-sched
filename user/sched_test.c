@@ -20,12 +20,12 @@ main(int argc, char *argv[])
   int nproc = 4;
   int len = 400; // about 20 ticks of CPU when run alone
 
-  if (argc > 1)
+  if (argc > 1) // first arg: number of processes
     nproc = atoi(argv[1]);
-  if (argc > 2)
+  if (argc > 2) // second arg: number of ticks
     len = atoi(argv[2]);
   if (nproc < 1 || nproc > 30) {
-    printf("usage: sched_test [nproc 1-30] [length]\n");
+    printf("usage: sched_test [nproc 1-30] [length (ticks*20)]\n");
     exit(1);
   }
 
